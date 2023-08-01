@@ -91,6 +91,7 @@ static unsigned char redraw;
 static unsigned char timestamp;
 static unsigned char color;
 static unsigned char bargraph;
+static unsigned char floatpercentage;
 static enum cfl_mode mode = CFL_WORSTCASE;
 static char *prg;
 
@@ -106,6 +107,7 @@ void print_usage(char *prg)
 	fprintf(stderr, "         -r  (redraw the terminal - similar to top)\n");
 	fprintf(stderr, "         -i  (ignore bitstuffing in bandwidth calculation)\n");
 	fprintf(stderr, "         -e  (exact calculation of stuffed bits)\n");
+	fprintf(stderr, "         -f  (show percentages in floating point)\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Up to %d CAN interfaces with mandatory bitrate can be specified on the \n", MAXSOCK);
 	fprintf(stderr, "commandline in the form: <ifname>@<bitrate>[,<dbitrate>]\n\n");
@@ -132,7 +134,8 @@ void sigterm(int signo)
 
 void printstats(int signo)
 {
-	int i, j, percent;
+	int i, j;
+	float percent;
 
 	if (redraw)
 		printf("%s", CSR_HOME);
@@ -190,12 +193,13 @@ void printstats(int signo)
 		}
 
 		if (stat[i].bitrate)
-			percent = ((stat[i].recv_bits_total-stat[i].recv_bits_dbitrate) * 100) / stat[i].bitrate
-				+ (stat[i].recv_bits_dbitrate * 100) / stat[i].dbitrate;
+			percent = ((stat[i].recv_bits_total-stat[i].recv_bits_dbitrate) * 100.F) / stat[i].bitrate
+				+ (stat[i].recv_bits_dbitrate * 100.F) / stat[i].dbitrate;
 		else
-			percent = 0;
+			percent = 0.F;
 
-		printf(" %*s@%-*d %5d %7d %6d %6d %3d%%",
+		if (floatpercentage) {
+			printf(" %*s@%-*d %5d %7d %6d %6d %6.2f%%",
 		       max_devname_len, stat[i].devname,
 		       max_bitrate_len, stat[i].bitrate,
 		       stat[i].recv_frames,
@@ -203,6 +207,16 @@ void printstats(int signo)
 		       stat[i].recv_bits_payload,
 		       stat[i].recv_bits_dbitrate,
 		       percent);
+		} else {
+			printf(" %*s@%-*d %5d %7d %6d %6d %3d%%",
+		       max_devname_len, stat[i].devname,
+		       max_bitrate_len, stat[i].bitrate,
+		       stat[i].recv_frames,
+		       stat[i].recv_bits_total,
+		       stat[i].recv_bits_payload,
+		       stat[i].recv_bits_dbitrate,
+		       (int)percent);
+		}
 
 		if (bargraph) {
 
@@ -259,7 +273,7 @@ int main(int argc, char **argv)
 
 	prg = basename(argv[0]);
 
-	while ((opt = getopt(argc, argv, "rtbcieh?")) != -1) {
+	while ((opt = getopt(argc, argv, "rtbciefh?")) != -1) {
 		switch (opt) {
 		case 'r':
 			redraw = 1;
@@ -283,6 +297,10 @@ int main(int argc, char **argv)
 
 		case 'e':
 			mode = CFL_EXACT;
+			break;
+
+		case 'f':
+			floatpercentage = 1;
 			break;
 
 		default:
